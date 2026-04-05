@@ -35,4 +35,3 @@ icon = SubResource("DPITexture_hjw5w")
 [node name="Tree" type="Tree" parent="." unique_id=1901016460]
 layout_mode = 2
 size_flags_vertical = 3
-hide_root = true

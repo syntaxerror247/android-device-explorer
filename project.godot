@@ -20,10 +20,6 @@ config/icon="res://icon.svg"
 window/size/viewport_width=500
 window/size/viewport_height=884
 
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/android_device_explorer/plugin.cfg")
-
 [physics]
 
 3d/physics_engine="Jolt Physics"

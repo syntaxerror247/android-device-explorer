@@ -15,6 +15,15 @@ const PULL_PUSH_TEMP = TMP_DIR + "/godot-device-explorer-plugin"
 var current_device := ""
 var show_all := false
 
+enum ContextMenu {
+	NEW_FILE,
+	NEW_DIRECTORY,
+	SAVE_AS,
+	UPLOAD,
+	DELETE,
+	SYNCHRONIZE,
+	COPY_PATH
+}
 
 func _ready() -> void:
 	_setup_ui()
@@ -23,19 +32,26 @@ func _ready() -> void:
 
 func _setup_ui() -> void:
 	tree.hide_root = true
+	tree.allow_rmb_select = true
 	tree.item_collapsed.connect(_on_item_collapsed)
+	tree.item_mouse_selected.connect(_on_item_mouse_selected)
 	
 	devices_btn.custom_minimum_size = Vector2(32, 32)
 	devices_btn.selected = -1
 	devices_btn.pressed.connect(_load_devices)
 	devices_btn.item_selected.connect(_on_device_selected)
 	
-	menu_button.icon = EditorInterface.get_base_control().get_theme_icon("GuiTabMenuHl", "EditorIcons")
+	menu_button.icon = get_theme_icon("GuiTabMenuHl", "EditorIcons")
 	var popup := menu_button.get_popup()
 	popup.clear()
 	popup.add_check_item("Show Full Filesystem", 0)
 	popup.set_item_checked(0, show_all)
 	popup.id_pressed.connect(_on_menu_item_pressed)
+
+
+func _on_item_mouse_selected(pos: Vector2, mouse_button_index: int) -> void:
+	if mouse_button_index == MOUSE_BUTTON_RIGHT:
+		create_context_menu()
 
 
 func _load_devices() -> void:
@@ -85,12 +101,11 @@ func _create_tree_item(parent: TreeItem, text: String, path: String, is_dir: boo
 	item.set_text(0, text)
 	item.set_metadata(0, {"path": path, "is_dir": is_dir})
 	
-	var gui := EditorInterface.get_base_control()
 	var icon_name = custom_icon if custom_icon != "" else ("Folder" if is_dir else _get_icon_for_ext(path))
-	item.set_icon(0, gui.get_theme_icon(icon_name, "EditorIcons"))
+	item.set_icon(0, get_theme_icon(icon_name, "EditorIcons"))
 	
 	if is_dir:
-		item.set_icon_modulate(0, gui.get_theme_color("accent_color", "Editor"))
+		item.set_icon_modulate(0, get_theme_color("accent_color", "Editor"))
 		if not skip_dummy: _add_dummy(item)
 	
 	item.collapsed = true
@@ -198,8 +213,44 @@ func _get_icon_for_ext(path: String) -> String:
 	match ext:
 		"gd": return "GDScript"
 		"tscn": return "PackedScene"
-		"res", "tres": return "Resource"
 		"png", "jpg", "svg": return "ImageTexture"
 		"txt", "json": return "TextFile"
 		_: return "File"
+
+
+func create_context_menu() -> void:
+	var item = tree.get_selected()
+	if not item: return
+	
+	var menu = PopupMenu.new()
+	
+	var is_dir = item.get_metadata(0).is_dir
+	if is_dir:
+		var sub_menu = PopupMenu.new()
+		sub_menu.add_icon_item(get_theme_icon("File", "EditorIcons"), "File", ContextMenu.NEW_FILE)
+		sub_menu.add_icon_item(get_theme_icon("Folder", "EditorIcons"), "Directory", ContextMenu.NEW_DIRECTORY)
+		sub_menu.id_pressed.connect(_on_context_menu_item_pressed)
+		menu.add_submenu_node_item("New", sub_menu)
+		menu.add_separator()
+	
+	menu.add_icon_item(get_theme_icon("MoveDown", "EditorIcons"), "Save As", ContextMenu.SAVE_AS)
+	if is_dir:
+		menu.add_icon_item(get_theme_icon("MoveUp", "EditorIcons"), "Upload", ContextMenu.UPLOAD)
+	menu.add_icon_item(get_theme_icon("Remove", "EditorIcons"), "Delete", ContextMenu.DELETE)
+	menu.add_separator()
+	menu.add_icon_item(get_theme_icon("Reload", "EditorIcons"), "Synchronize", ContextMenu.SYNCHRONIZE)
+	menu.add_icon_item(get_theme_icon("ActionCopy", "EditorIcons"), "Copy Path", ContextMenu.COPY_PATH)
+	
+	menu.id_pressed.connect(_on_context_menu_item_pressed)
+	menu.popup_hide.connect(menu.queue_free)
+	add_child(menu)
+	
+	menu.position = DisplayServer.mouse_get_position()
+	menu.popup()
+
+
+func _on_context_menu_item_pressed(id: int) -> void:
+	var item = tree.get_selected()
+	if not item: return
+	print("context menu pressed: ", id)
 	
