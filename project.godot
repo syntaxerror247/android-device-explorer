@@ -11,7 +11,6 @@ config_version=5
 [application]
 
 config/name="Android Device Explorer"
-run/main_scene="uid://c01i5jf0306r"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
 
@@ -19,6 +18,10 @@ config/icon="res://icon.svg"
 
 window/size/viewport_width=500
 window/size/viewport_height=884
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/android_device_explorer/plugin.cfg")
 
 [physics]
 

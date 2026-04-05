@@ -8,9 +8,9 @@ const TMP_DIR := "/data/local/tmp"
 const STORAGE_ROOT := "/storage/emulated/0"
 const PULL_PUSH_TEMP = TMP_DIR + "/godot-device-explorer-plugin"
 
-@onready var tree: Tree = $Tree
-@onready var devices_btn: OptionButton = $HBoxContainer/OptionButton
-@onready var menu_button: MenuButton = $HBoxContainer/MenuButton
+var tree: Tree
+var devices_btn: OptionButton
+var menu_button: MenuButton
 
 var current_device := ""
 var show_all := false
@@ -31,22 +31,31 @@ func _ready() -> void:
 
 
 func _setup_ui() -> void:
+	var hbox := HBoxContainer.new()
+	add_child(hbox)
+	
+	devices_btn = OptionButton.new()
+	devices_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	devices_btn.custom_minimum_size = Vector2(32, 32)
+	devices_btn.pressed.connect(_load_devices)
+	devices_btn.item_selected.connect(_on_device_selected)
+	hbox.add_child(devices_btn)
+	
+	menu_button = MenuButton.new()
+	menu_button.icon = get_theme_icon("GuiTabMenuHl", "EditorIcons")
+	var popup := menu_button.get_popup()
+	popup.add_check_item("Show Full Filesystem", 0)
+	popup.set_item_checked(0, show_all)
+	popup.id_pressed.connect(_on_menu_item_pressed)
+	hbox.add_child(menu_button)
+	
+	tree = Tree.new()
+	tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tree.hide_root = true
 	tree.allow_rmb_select = true
 	tree.item_collapsed.connect(_on_item_collapsed)
 	tree.item_mouse_selected.connect(_on_item_mouse_selected)
-	
-	devices_btn.custom_minimum_size = Vector2(32, 32)
-	devices_btn.selected = -1
-	devices_btn.pressed.connect(_load_devices)
-	devices_btn.item_selected.connect(_on_device_selected)
-	
-	menu_button.icon = get_theme_icon("GuiTabMenuHl", "EditorIcons")
-	var popup := menu_button.get_popup()
-	popup.clear()
-	popup.add_check_item("Show Full Filesystem", 0)
-	popup.set_item_checked(0, show_all)
-	popup.id_pressed.connect(_on_menu_item_pressed)
+	add_child(tree)
 
 
 func _on_item_mouse_selected(pos: Vector2, mouse_button_index: int) -> void:
