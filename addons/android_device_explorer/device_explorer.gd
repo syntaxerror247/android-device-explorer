@@ -177,15 +177,17 @@ func _get_devices() -> Array[String]:
 
 func _list_dir(path: String) -> Array:
 	var args := ["shell"]
+	var ls_cmd = "ls -1 -F '%s'" % path
 	if path.begins_with(DATA_ROOT):
-		args.append_array(["run-as", PACKAGE_NAME, "ls", "-1", "-p", path])
+		args.append_array(["run-as", PACKAGE_NAME, ls_cmd])
 	else:
-		args.append("ls -1 -p '%s'" % path)
+		args.append(ls_cmd)
 	
 	var result := _run_adb(args)
 	var files := []
 	for line in result.split("\n"):
 		line = line.strip_edges()
+		if line.ends_with("@"): continue # Ignore links like /sdcard for now. I'll handle it later.
 		if line == "" or line.begins_with("total"): continue
 		files.append({"name": line.rstrip("/"), "is_dir": line.ends_with("/")})
 	return files
