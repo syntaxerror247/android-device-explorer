@@ -41,6 +41,11 @@ func _setup_ui() -> void:
 	devices_btn.item_selected.connect(_on_device_selected)
 	hbox.add_child(devices_btn)
 	
+	var reload_btn = Button.new()
+	reload_btn.icon = get_theme_icon("Reload", "EditorIcons")
+	reload_btn.pressed.connect(_load_root)
+	hbox.add_child(reload_btn)
+	
 	menu_button = MenuButton.new()
 	menu_button.icon = get_theme_icon("GuiTabMenuHl", "EditorIcons")
 	var popup := menu_button.get_popup()
@@ -177,6 +182,8 @@ func _on_menu_item_pressed(id: int) -> void:
 		_load_root()
 
 
+# ADB Handling--------------------------------------------------------------------------------------
+
 func _run_adb(p_args: PackedStringArray) -> String:
 	var args: PackedStringArray = []
 	if current_device != "":
@@ -216,6 +223,8 @@ func _list_dir(path: String) -> Array:
 		files.append({"name": line.rstrip("/"), "is_dir": line.ends_with("/")})
 	return files
 
+
+#---------------------------------------------------------------------------------------------------
 
 func _get_icon_for_ext(path: String) -> String:
 	var ext := path.get_extension().to_lower()
