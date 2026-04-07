@@ -204,6 +204,22 @@ func _show_file_dialog(remote_path: String, is_uploading: bool, is_dir: bool = f
 	
 	add_child(file_dialog)
 	file_dialog.popup_file_dialog()
+	file_dialog.visibility_changed.connect(_dialog_visibility_changed.bind(file_dialog))
+
+
+func _show_delete_dialog(remote_path: String, is_dir: bool) -> void:
+	var confirm_dialog = ConfirmationDialog.new()
+	confirm_dialog.title = "Delete"
+	confirm_dialog.dialog_text = "Are you sure you want to delete %s '%s'?" % ["folder" if is_dir else "file", remote_path.get_file()]
+	confirm_dialog.confirmed.connect(_delete.bind(remote_path))
+	add_child(confirm_dialog)
+	confirm_dialog.popup_centered()
+	confirm_dialog.visibility_changed.connect(_dialog_visibility_changed.bind(confirm_dialog))
+
+
+func _dialog_visibility_changed(dialog: AcceptDialog) -> void:
+	if not dialog.visible:
+		dialog.queue_free()
 
 # ADB Handling--------------------------------------------------------------------------------------
 
@@ -310,6 +326,15 @@ func _push(local_path: String, remote_path: String) -> void:
 	_run_adb(["shell", "run-as", PACKAGE_NAME, cp_cmd])
 	_run_adb(["shell", "rm", "-rf", temp_path])
 
+
+func _delete(remote_path: String) -> void:
+	var delete_cmd = "rm -r '%s'" % remote_path
+	if remote_path.begins_with(DATA_ROOT):
+		var a = _run_adb(["shell", "run-as", PACKAGE_NAME, delete_cmd])
+		print(a)
+	else:
+		_run_adb(["shell", delete_cmd])
+
 #---------------------------------------------------------------------------------------------------
 
 func _get_icon_for_ext(path: String) -> String:
@@ -363,4 +388,7 @@ func _on_context_menu_item_pressed(id: int) -> void:
 		ContextMenu.UPLOAD:
 			var meta = item.get_metadata(0)
 			_show_file_dialog(meta.path, true)
+		ContextMenu.DELETE:
+			var meta = item.get_metadata(0)
+			_show_delete_dialog(meta.path, meta.is_dir)
 	
