@@ -158,10 +158,13 @@ func _on_dir_expanded(item: TreeItem, refresh := false) -> void:
 		return
 	
 	var files: Array = _list_dir(path)
-	if files.size() > 0:
+	if files.size() > 0 or refresh:
 		# Files are loaded, now remove the dummy file or old items.
 		for child in item.get_children():
 			child.free()
+	
+	if files.is_empty() and refresh:
+		_add_dummy.call_deferred(item)
 	
 	for f in files:
 		var full_path = path.rstrip("/") + "/" + f.name
@@ -386,15 +389,18 @@ func create_context_menu() -> void:
 
 func _on_context_menu_item_pressed(id: int) -> void:
 	var item = tree.get_selected()
-	if not item: return
+	var meta = item.get_metadata(0) if item else null
+	if not meta: return
+	
 	match id:
 		ContextMenu.SAVE_AS:
-			var meta = item.get_metadata(0)
 			_show_file_dialog(meta.path, false, meta.is_dir)
 		ContextMenu.UPLOAD:
-			var meta = item.get_metadata(0)
 			_show_file_dialog(meta.path, true)
 		ContextMenu.DELETE:
-			var meta = item.get_metadata(0)
 			_show_delete_dialog(meta.path, meta.is_dir)
+		ContextMenu.SYNCHRONIZE:
+			_on_dir_expanded(item, true)
+		ContextMenu.COPY_PATH:
+			DisplayServer.clipboard_set(meta.path)
 	
