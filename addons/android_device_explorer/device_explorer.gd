@@ -37,13 +37,12 @@ func _setup_ui() -> void:
 	devices_btn = OptionButton.new()
 	devices_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	devices_btn.custom_minimum_size = Vector2(32, 32)
-	devices_btn.pressed.connect(_load_devices)
 	devices_btn.item_selected.connect(_on_device_selected)
 	hbox.add_child(devices_btn)
 	
 	var reload_btn = Button.new()
 	reload_btn.icon = get_theme_icon("Reload", "EditorIcons")
-	reload_btn.pressed.connect(_load_root)
+	reload_btn.pressed.connect(_load_devices)
 	hbox.add_child(reload_btn)
 	
 	menu_button = MenuButton.new()
@@ -70,18 +69,14 @@ func _on_item_mouse_selected(pos: Vector2, mouse_button_index: int) -> void:
 
 func _load_devices() -> void:
 	var device_list := _get_devices()
-	var selected = devices_btn.get_selected_id()
 	devices_btn.clear()
 	
 	for d in device_list:
 		devices_btn.add_item(d)
 	
-	if device_list.size() > 0:
-		if selected != -1:
-			devices_btn.select(selected)
-		else:
-			devices_btn.select(0)
-			_on_device_selected(0)
+	if not device_list.is_empty():
+		devices_btn.select(0)
+		_on_device_selected(0)
 	else:
 		devices_btn.text = "No Device Found"
 		tree.clear()
