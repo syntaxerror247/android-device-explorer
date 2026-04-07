@@ -181,16 +181,29 @@ func _on_menu_item_pressed(id: int) -> void:
 		menu_button.get_popup().set_item_checked(0, show_all)
 		_load_root()
 
-func _show_save_as_dialog(remote_path: String, is_dir: bool) -> void:
+
+func _show_file_dialog(remote_path: String, is_uploading: bool, is_dir: bool = false) -> void:
 	var file_dialog = EditorFileDialog.new()
 	file_dialog.access = FileDialog.ACCESS_FILESYSTEM
-	file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR if is_dir else FileDialog.FILE_MODE_SAVE_FILE
-	file_dialog.current_file = remote_path.get_file()
-	file_dialog.file_selected.connect(_pull_single_file.bind(remote_path))
-	file_dialog.dir_selected.connect(_pull_dir.bind(remote_path))
+	
+	if is_uploading:
+		file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_ANY
+		file_dialog.title = "Select file or directory to upload"
+		file_dialog.file_selected.connect(_push.bind(remote_path))
+		file_dialog.dir_selected.connect(_push.bind(remote_path))
+	else:
+		if is_dir:
+			file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+			file_dialog.title = "Save directory to..."
+			file_dialog.dir_selected.connect(_pull_dir.bind(remote_path))
+		else:
+			file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+			file_dialog.title = "Save file as..."
+			file_dialog.current_file = remote_path.get_file()
+			file_dialog.file_selected.connect(_pull_single_file.bind(remote_path))
+	
 	add_child(file_dialog)
 	file_dialog.popup_file_dialog()
-
 
 # ADB Handling--------------------------------------------------------------------------------------
 
@@ -278,6 +291,25 @@ func _pull_single_file(local_path: String, remote_path: String) -> void:
 	_run_adb(["pull", temp_path, local_path])
 	_run_adb(["shell", "rm", temp_path])
 
+
+func _push(local_path: String, remote_path: String) -> void:
+	if not remote_path.begins_with(DATA_ROOT):
+		_run_adb(["push", local_path, remote_path])
+		return
+	
+	# special handling for app's private data dir
+	var temp_name = "temp_" + str(Time.get_ticks_usec())
+	var temp_path = PULL_PUSH_TEMP.path_join(temp_name)
+	
+	_run_adb(["push", local_path, temp_path])
+	
+	var source_name = local_path.get_file()
+	var exact_remote_path = remote_path.path_join(source_name)
+	
+	var cp_cmd = "cp -r '%s' '%s'" % [temp_path, exact_remote_path]
+	_run_adb(["shell", "run-as", PACKAGE_NAME, cp_cmd])
+	_run_adb(["shell", "rm", "-rf", temp_path])
+
 #---------------------------------------------------------------------------------------------------
 
 func _get_icon_for_ext(path: String) -> String:
@@ -327,5 +359,8 @@ func _on_context_menu_item_pressed(id: int) -> void:
 	match id:
 		ContextMenu.SAVE_AS:
 			var meta = item.get_metadata(0)
-			_show_save_as_dialog(meta.path, meta.is_dir)
+			_show_file_dialog(meta.path, false, meta.is_dir)
+		ContextMenu.UPLOAD:
+			var meta = item.get_metadata(0)
+			_show_file_dialog(meta.path, true)
 	
