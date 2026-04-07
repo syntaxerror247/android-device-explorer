@@ -71,8 +71,12 @@ func _load_devices() -> void:
 	var device_list := _get_devices()
 	devices_btn.clear()
 	
-	for d in device_list:
-		devices_btn.add_item(d)
+	for i in device_list.size():
+		var id = device_list[i]
+		var model := _run_adb(["-s", id, "shell", "getprop", "ro.product.model"]).strip_edges()
+		var brand := _run_adb(["-s", id, "shell", "getprop", "ro.product.brand"]).strip_edges().capitalize()
+		devices_btn.add_item(brand + " " + model, i)
+		devices_btn.set_item_metadata(0, id)
 	
 	if not device_list.is_empty():
 		devices_btn.select(0)
@@ -83,7 +87,7 @@ func _load_devices() -> void:
 
 
 func _on_device_selected(index: int) -> void:
-	current_device = devices_btn.get_item_text(index)
+	current_device = devices_btn.get_item_metadata(index)
 	_load_root()
 
 
