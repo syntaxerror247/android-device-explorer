@@ -220,9 +220,30 @@ func _show_delete_dialog(remote_path: String, is_dir: bool) -> void:
 	confirm_dialog.visibility_changed.connect(_dialog_visibility_changed.bind(confirm_dialog))
 
 
+func _show_create_dialog(remote_path: String, creating_dir: bool) -> void:
+	var dialog = ConfirmationDialog.new()
+	var input := LineEdit.new()
+	if creating_dir:
+		dialog.title = "Enter a new folder name"
+		input.text = "MyFolder"
+	else:
+		dialog.title = "Enter a new file name"
+		input.text = "MyFile.txt"
+	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dialog.add_child(input)
+	
+	input.text_changed.connect(func (new_text: String): dialog.get_ok_button().disabled = new_text.is_empty())
+	
+	dialog.confirmed.connect(_create_file_or_directory.bind(remote_path.path_join(input.text), creating_dir))
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(350, 100))
+	dialog.visibility_changed.connect(_dialog_visibility_changed.bind(dialog))
+
+
 func _dialog_visibility_changed(dialog: AcceptDialog) -> void:
 	if not dialog.visible:
 		dialog.queue_free()
+
 
 # ADB Handling--------------------------------------------------------------------------------------
 
@@ -344,6 +365,23 @@ func _delete(remote_path: String) -> void:
 	# Finally refresh the tree view
 	_on_dir_expanded(tree.get_selected().get_parent(), true)
 
+
+func _create_file_or_directory(path: String, creating_dir: bool) -> void:
+	var cmd: String
+	if creating_dir:
+		cmd = "mkdir '%s'" % path
+	else:
+		cmd = "touch '%s'" % path
+	
+	if path.begins_with(DATA_ROOT):
+		var a = _run_adb(["shell", "run-as", PACKAGE_NAME, cmd])
+		print(a)
+	else:
+		_run_adb(["shell", cmd])
+	
+	# Finally refresh the tree view
+	_on_dir_expanded(tree.get_selected(), true)
+
 #---------------------------------------------------------------------------------------------------
 
 func _get_icon_for_ext(path: String) -> String:
@@ -393,6 +431,10 @@ func _on_context_menu_item_pressed(id: int) -> void:
 	if not meta: return
 	
 	match id:
+		ContextMenu.NEW_FILE:
+			_show_create_dialog(meta.path, false)
+		ContextMenu.NEW_DIRECTORY:
+			_show_create_dialog(meta.path, true)
 		ContextMenu.SAVE_AS:
 			_show_file_dialog(meta.path, false, meta.is_dir)
 		ContextMenu.UPLOAD:
