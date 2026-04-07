@@ -325,6 +325,9 @@ func _push(local_path: String, remote_path: String) -> void:
 	var cp_cmd = "cp -r '%s' '%s'" % [temp_path, exact_remote_path]
 	_run_adb(["shell", "run-as", PACKAGE_NAME, cp_cmd])
 	_run_adb(["shell", "rm", "-rf", temp_path])
+	
+	# Finally refresh the tree view to show newly uploaded file
+	_on_dir_expanded(tree.get_selected(), true)
 
 
 func _delete(remote_path: String) -> void:
@@ -334,6 +337,9 @@ func _delete(remote_path: String) -> void:
 		print(a)
 	else:
 		_run_adb(["shell", delete_cmd])
+	
+	# Finally refresh the tree view
+	_on_dir_expanded(tree.get_selected().get_parent(), true)
 
 #---------------------------------------------------------------------------------------------------
 
