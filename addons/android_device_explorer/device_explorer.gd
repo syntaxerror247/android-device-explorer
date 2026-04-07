@@ -181,6 +181,16 @@ func _on_menu_item_pressed(id: int) -> void:
 		menu_button.get_popup().set_item_checked(0, show_all)
 		_load_root()
 
+func _show_save_as_dialog(remote_path: String, is_dir: bool) -> void:
+	var file_dialog = EditorFileDialog.new()
+	file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR if is_dir else FileDialog.FILE_MODE_SAVE_FILE
+	file_dialog.current_file = remote_path.get_file()
+	file_dialog.file_selected.connect(_pull_single_file.bind(remote_path))
+	file_dialog.dir_selected.connect(_pull_dir.bind(remote_path))
+	add_child(file_dialog)
+	file_dialog.popup_file_dialog()
+
 
 # ADB Handling--------------------------------------------------------------------------------------
 
@@ -192,6 +202,7 @@ func _run_adb(p_args: PackedStringArray) -> String:
 	
 	var output := []
 	OS.execute(ADB_PATH, args, output, true)
+	#print(output)
 	return output[0] if output.size() > 0 else ""
 
 
@@ -223,6 +234,49 @@ func _list_dir(path: String) -> Array:
 		files.append({"name": line.rstrip("/"), "is_dir": line.ends_with("/")})
 	return files
 
+
+func _pull_dir(local_path: String, remote_path: String) -> void:
+	if not remote_path.begins_with(DATA_ROOT):
+		_run_adb(["pull", remote_path, local_path])
+		return
+	
+	# special handling for app's private data dir
+	var ls_cmd = "ls -1 -F '%s'" % remote_path
+	var output = _run_adb(["shell", "run-as", PACKAGE_NAME, ls_cmd])
+	
+	local_path = local_path.path_join(remote_path.get_file()) # Create the base directory in local path
+	if not DirAccess.dir_exists_absolute(local_path):
+		DirAccess.make_dir_recursive_absolute(local_path)
+	
+	for line in output.split("\n"):
+		line = line.strip_edges()
+		if line == "" or line.begins_with("total"): continue
+		
+		var is_dir = line.ends_with("/")
+		var item_name = line.trim_suffix("/")
+		var item_remote_path = remote_path.path_join(item_name)
+		var item_local_path = local_path.path_join(item_name)
+		
+		if is_dir:
+			_pull_dir(item_local_path, item_remote_path)
+		else:
+			_pull_single_file(item_local_path, item_remote_path)
+
+
+func _pull_single_file(local_path: String, remote_path: String) -> void:
+	if not remote_path.begins_with(DATA_ROOT):
+		_run_adb(["pull", remote_path, local_path])
+		return
+	
+	# special handling for app's private data dir
+	var temp_name = "temp_" + str(Time.get_ticks_usec())
+	var temp_path = PULL_PUSH_TEMP.path_join(temp_name)
+	
+	_run_adb(["shell", "touch", temp_path])
+	var cp_cmd = "cp '%s' '%s'" % [remote_path, temp_path]
+	_run_adb(["shell", "run-as", PACKAGE_NAME, cp_cmd])
+	_run_adb(["pull", temp_path, local_path])
+	_run_adb(["shell", "rm", temp_path])
 
 #---------------------------------------------------------------------------------------------------
 
@@ -270,5 +324,8 @@ func create_context_menu() -> void:
 func _on_context_menu_item_pressed(id: int) -> void:
 	var item = tree.get_selected()
 	if not item: return
-	print("context menu pressed: ", id)
+	match id:
+		ContextMenu.SAVE_AS:
+			var meta = item.get_metadata(0)
+			_show_save_as_dialog(meta.path, meta.is_dir)
 	
