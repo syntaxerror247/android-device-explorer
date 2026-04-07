@@ -1,18 +1,21 @@
 @tool
 extends VBoxContainer
 
-const ADB_PATH := "/home/anish/Android/Sdk/platform-tools/adb"
-const PACKAGE_NAME := "org.godotengine.editor.v4.debug"
-const DATA_ROOT := "/data/data/" + PACKAGE_NAME
 const TMP_DIR := "/data/local/tmp"
 const STORAGE_ROOT := "/storage/emulated/0"
 const PULL_PUSH_TEMP = TMP_DIR + "/godot-device-explorer-plugin"
+const ADB_PATH_SETTING = "_android-device-explorer/adb_path"
+const PACKAGE_NAME_SETTING = "_android-device-explorer/package_name"
+
+var adb_path: String
+var package_name: String
+var app_data_dir: String
 
 var tree: Tree
 var devices_btn: OptionButton
-var menu_button: MenuButton
+var dock_menu_button: MenuButton
 
-var current_device := ""
+var current_device: String
 var show_all := false
 
 enum ContextMenu {
@@ -26,6 +29,21 @@ enum ContextMenu {
 }
 
 func _ready() -> void:
+	var saved_adb_path = EditorInterface.get_editor_settings().get_setting(ADB_PATH_SETTING)
+	var saved_package_name = EditorInterface.get_editor_settings().get_setting(PACKAGE_NAME_SETTING)
+	
+	if saved_adb_path != null:
+		adb_path = saved_adb_path
+	else:
+		adb_path = EditorInterface.get_editor_settings().get_setting("export/android/android_sdk_path").path_join("platform-tools/adb")
+	
+	if saved_package_name != null:
+		package_name = saved_package_name
+		app_data_dir = "/data/data/"+package_name
+	
+	if package_name.is_empty() or adb_path.is_empty():
+		_show_config_dilaog()
+	
 	_setup_ui()
 	_load_devices()
 
@@ -42,16 +60,19 @@ func _setup_ui() -> void:
 	
 	var reload_btn = Button.new()
 	reload_btn.icon = get_theme_icon("Reload", "EditorIcons")
+	reload_btn.tooltip_text = "Reload"
 	reload_btn.pressed.connect(_load_devices)
 	hbox.add_child(reload_btn)
 	
-	menu_button = MenuButton.new()
-	menu_button.icon = get_theme_icon("GuiTabMenuHl", "EditorIcons")
-	var popup := menu_button.get_popup()
+	dock_menu_button = MenuButton.new()
+	dock_menu_button.icon = get_theme_icon("GuiTabMenuHl", "EditorIcons")
+	var popup := dock_menu_button.get_popup()
 	popup.add_check_item("Show Full Filesystem", 0)
 	popup.set_item_checked(0, show_all)
-	popup.id_pressed.connect(_on_menu_item_pressed)
-	hbox.add_child(menu_button)
+	popup.add_separator()
+	popup.add_icon_item(get_theme_icon("GDScript", "EditorIcons"), "Open config Window", 1)
+	popup.id_pressed.connect(_on_dock_menu_item_pressed)
+	hbox.add_child(dock_menu_button)
 	
 	tree = Tree.new()
 	tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -65,6 +86,16 @@ func _setup_ui() -> void:
 func _on_item_mouse_selected(pos: Vector2, mouse_button_index: int) -> void:
 	if mouse_button_index == MOUSE_BUTTON_RIGHT:
 		create_context_menu()
+
+
+func _on_dock_menu_item_pressed(id: int) -> void:
+	match id:
+		0:
+			show_all = !show_all
+			dock_menu_button.get_popup().set_item_checked(0, show_all)
+			_load_root()
+		1:
+			_show_config_dilaog()
 
 
 func _load_devices() -> void:
@@ -93,6 +124,9 @@ func _on_device_selected(index: int) -> void:
 
 func _load_root() -> void:
 	tree.clear()
+	if current_device.is_empty():
+		return
+	
 	var root := tree.create_item()
 	
 	if show_all:
@@ -102,7 +136,7 @@ func _load_root() -> void:
 		_on_dir_expanded(root)
 	else:
 		root.set_text(0, "Device Scopes")
-		_create_tree_item(root, "App Data", DATA_ROOT, true)
+		_create_tree_item(root, "App Data", app_data_dir, true)
 		_create_tree_item(root, "Temp Storage", TMP_DIR, true)
 		_create_tree_item(root, "Internal Storage", STORAGE_ROOT, true)
 	
@@ -174,14 +208,7 @@ func _populate_special_data_dir(parent: TreeItem) -> void:
 	var data_node = _create_tree_item(parent, "data", "/data/data", true, "", true)
 	var local_node = _create_tree_item(parent, "local", "/data/local", true, "", true)
 	var tmp_node = _create_tree_item(local_node, "tmp", TMP_DIR, true)
-	var pkg_node = _create_tree_item(data_node, PACKAGE_NAME, DATA_ROOT, true)
-
-
-func _on_menu_item_pressed(id: int) -> void:
-	if id == 0:
-		show_all = !show_all
-		menu_button.get_popup().set_item_checked(0, show_all)
-		_load_root()
+	var pkg_node = _create_tree_item(data_node, package_name, app_data_dir, true)
 
 
 func _show_file_dialog(remote_path: String, is_uploading: bool, is_dir: bool = false) -> void:
@@ -239,7 +266,46 @@ func _show_create_dialog(remote_path: String, creating_dir: bool) -> void:
 	dialog.visibility_changed.connect(_dialog_visibility_changed.bind(dialog))
 
 
-func _dialog_visibility_changed(dialog: AcceptDialog) -> void:
+func _show_config_dilaog() -> void:
+	var dialog = ConfirmationDialog.new()
+	dialog.title = "Device Explorer Configuration"
+	dialog.ok_button_text = "Save"
+	dialog.exclusive = false
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	dialog.add_child(vbox)
+	
+	var adb_label := Label.new()
+	adb_label.text = "ADB Path:"
+	vbox.add_child(adb_label)
+	var adb_input := LineEdit.new()
+	adb_input.placeholder_text = "Enter ADB executable path..."
+	adb_input.text = adb_path
+	adb_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(adb_input)
+	
+	var package_label := Label.new()
+	package_label.text = "Package Name:"
+	vbox.add_child(package_label)
+	var pkg_input := LineEdit.new()
+	pkg_input.placeholder_text = "Enter app package name..."
+	pkg_input.text = package_name
+	pkg_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(pkg_input)
+	
+	dialog.confirmed.connect(func():
+		adb_path = adb_input.text
+		package_name = pkg_input.text
+		app_data_dir = "/data/data/"+package_name
+		EditorInterface.get_editor_settings().set_setting(ADB_PATH_SETTING, adb_path)
+		EditorInterface.get_editor_settings().set_setting(PACKAGE_NAME_SETTING, package_name)
+	)
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(400, 180))
+	dialog.visibility_changed.connect(_dialog_visibility_changed.bind(dialog))
+
+
+func _dialog_visibility_changed(dialog: Window) -> void:
 	if not dialog.visible:
 		dialog.queue_free()
 
@@ -248,13 +314,13 @@ func _dialog_visibility_changed(dialog: AcceptDialog) -> void:
 
 func _run_adb(p_args: PackedStringArray) -> String:
 	var args: PackedStringArray = []
-	if current_device != "":
+	if not current_device.is_empty():
 		args.append_array(["-s", current_device])
 	args.append_array(p_args)
 	
 	var output := []
-	OS.execute(ADB_PATH, args, output, true)
-	#print(output)
+	OS.execute(adb_path, args, output, true)
+	print(output)
 	return output[0] if output.size() > 0 else ""
 
 
@@ -272,8 +338,8 @@ func _get_devices() -> Array[String]:
 func _list_dir(path: String) -> Array:
 	var args := ["shell"]
 	var ls_cmd = "ls -1 -F '%s'" % path
-	if path.begins_with(DATA_ROOT):
-		args.append_array(["run-as", PACKAGE_NAME, ls_cmd])
+	if path.begins_with(app_data_dir):
+		args.append_array(["run-as", package_name, ls_cmd])
 	else:
 		args.append(ls_cmd)
 	
@@ -288,13 +354,13 @@ func _list_dir(path: String) -> Array:
 
 
 func _pull_dir(local_path: String, remote_path: String) -> void:
-	if not remote_path.begins_with(DATA_ROOT):
+	if not remote_path.begins_with(app_data_dir):
 		_run_adb(["pull", remote_path, local_path])
 		return
 	
 	# special handling for app's private data dir
 	var ls_cmd = "ls -1 -F '%s'" % remote_path
-	var output = _run_adb(["shell", "run-as", PACKAGE_NAME, ls_cmd])
+	var output = _run_adb(["shell", "run-as", package_name, ls_cmd])
 	
 	local_path = local_path.path_join(remote_path.get_file()) # Create the base directory in local path
 	if not DirAccess.dir_exists_absolute(local_path):
@@ -316,7 +382,7 @@ func _pull_dir(local_path: String, remote_path: String) -> void:
 
 
 func _pull_single_file(local_path: String, remote_path: String) -> void:
-	if not remote_path.begins_with(DATA_ROOT):
+	if not remote_path.begins_with(app_data_dir):
 		_run_adb(["pull", remote_path, local_path])
 		return
 	
@@ -326,13 +392,13 @@ func _pull_single_file(local_path: String, remote_path: String) -> void:
 	
 	_run_adb(["shell", "touch", temp_path])
 	var cp_cmd = "cp '%s' '%s'" % [remote_path, temp_path]
-	_run_adb(["shell", "run-as", PACKAGE_NAME, cp_cmd])
+	_run_adb(["shell", "run-as", package_name, cp_cmd])
 	_run_adb(["pull", temp_path, local_path])
 	_run_adb(["shell", "rm", temp_path])
 
 
 func _push(local_path: String, remote_path: String) -> void:
-	if not remote_path.begins_with(DATA_ROOT):
+	if not remote_path.begins_with(app_data_dir):
 		_run_adb(["push", local_path, remote_path])
 		return
 	
@@ -346,7 +412,7 @@ func _push(local_path: String, remote_path: String) -> void:
 	var exact_remote_path = remote_path.path_join(source_name)
 	
 	var cp_cmd = "cp -r '%s' '%s'" % [temp_path, exact_remote_path]
-	_run_adb(["shell", "run-as", PACKAGE_NAME, cp_cmd])
+	_run_adb(["shell", "run-as", package_name, cp_cmd])
 	_run_adb(["shell", "rm", "-rf", temp_path])
 	
 	# Finally refresh the tree view to show newly uploaded file
@@ -355,8 +421,8 @@ func _push(local_path: String, remote_path: String) -> void:
 
 func _delete(remote_path: String) -> void:
 	var delete_cmd = "rm -r '%s'" % remote_path
-	if remote_path.begins_with(DATA_ROOT):
-		var a = _run_adb(["shell", "run-as", PACKAGE_NAME, delete_cmd])
+	if remote_path.begins_with(app_data_dir):
+		var a = _run_adb(["shell", "run-as", package_name, delete_cmd])
 		print(a)
 	else:
 		_run_adb(["shell", delete_cmd])
@@ -372,8 +438,8 @@ func _create_file_or_directory(path: String, creating_dir: bool) -> void:
 	else:
 		cmd = "touch '%s'" % path
 	
-	if path.begins_with(DATA_ROOT):
-		var a = _run_adb(["shell", "run-as", PACKAGE_NAME, cmd])
+	if path.begins_with(app_data_dir):
+		var a = _run_adb(["shell", "run-as", package_name, cmd])
 		print(a)
 	else:
 		_run_adb(["shell", cmd])
