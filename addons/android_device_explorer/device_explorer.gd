@@ -70,7 +70,7 @@ func _setup_ui() -> void:
 	popup.add_check_item("Show Full Filesystem", 0)
 	popup.set_item_checked(0, show_all)
 	popup.add_separator()
-	popup.add_icon_item(get_theme_icon("GDScript", "EditorIcons"), "Open config Window", 1)
+	popup.add_icon_item(get_theme_icon("GDScript", "EditorIcons"), "Open Config Window", 1)
 	popup.id_pressed.connect(_on_dock_menu_item_pressed)
 	hbox.add_child(dock_menu_button)
 	
@@ -320,7 +320,7 @@ func _run_adb(p_args: PackedStringArray) -> String:
 	
 	var output := []
 	OS.execute(adb_path, args, output, true)
-	print(output)
+	#print(output)
 	return output[0] if output.size() > 0 else ""
 
 
@@ -422,8 +422,7 @@ func _push(local_path: String, remote_path: String) -> void:
 func _delete(remote_path: String) -> void:
 	var delete_cmd = "rm -r '%s'" % remote_path
 	if remote_path.begins_with(app_data_dir):
-		var a = _run_adb(["shell", "run-as", package_name, delete_cmd])
-		print(a)
+		_run_adb(["shell", "run-as", package_name, delete_cmd])
 	else:
 		_run_adb(["shell", delete_cmd])
 	
@@ -439,8 +438,7 @@ func _create_file_or_directory(path: String, creating_dir: bool) -> void:
 		cmd = "touch '%s'" % path
 	
 	if path.begins_with(app_data_dir):
-		var a = _run_adb(["shell", "run-as", package_name, cmd])
-		print(a)
+		_run_adb(["shell", "run-as", package_name, cmd])
 	else:
 		_run_adb(["shell", cmd])
 	
