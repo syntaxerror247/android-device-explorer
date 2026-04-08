@@ -351,7 +351,7 @@ func _run_adb(p_args: PackedStringArray) -> String:
 	
 	var output := []
 	OS.execute(adb_path, args, output, true)
-	print(output)
+	#print(output)
 	return output[0] if output.size() > 0 else ""
 
 
