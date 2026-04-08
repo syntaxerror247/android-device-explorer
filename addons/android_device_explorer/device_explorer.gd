@@ -14,9 +14,11 @@ var app_data_dir: String
 var tree: Tree
 var devices_btn: OptionButton
 var dock_menu_button: MenuButton
+var status_label: Label
 
 var current_device: String
 var show_all := false
+var is_busy := false
 
 enum ContextMenu {
 	NEW_FILE,
@@ -81,11 +83,16 @@ func _setup_ui() -> void:
 	tree.item_collapsed.connect(_on_item_collapsed)
 	tree.item_mouse_selected.connect(_on_item_mouse_selected)
 	add_child(tree)
+	
+	status_label = Label.new()
+	status_label.text = "Ready"
+	status_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	add_child(status_label)
 
 
 func _on_item_mouse_selected(pos: Vector2, mouse_button_index: int) -> void:
 	if mouse_button_index == MOUSE_BUTTON_RIGHT:
-		create_context_menu()
+		_create_context_menu()
 
 
 func _on_dock_menu_item_pressed(id: int) -> void:
@@ -229,7 +236,7 @@ func _show_file_dialog(remote_path: String, is_uploading: bool, is_dir: bool = f
 			file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 			file_dialog.title = "Save file as..."
 			file_dialog.current_file = remote_path.get_file()
-			file_dialog.file_selected.connect(_pull_single_file.bind(remote_path))
+			file_dialog.file_selected.connect(_pull_file.bind(remote_path))
 	
 	add_child(file_dialog)
 	file_dialog.popup_file_dialog()
@@ -312,6 +319,24 @@ func _dialog_visibility_changed(dialog: Window) -> void:
 
 # ADB Handling--------------------------------------------------------------------------------------
 
+func _execute_threaded(callable: Callable, status_msg: String) -> void:
+	if is_busy: return
+	_update_status(status_msg, true)
+	
+	WorkerThreadPool.add_task(func():
+		callable.call()
+		call_deferred("_update_status", "Ready", false)
+	)
+
+
+func _update_status(msg: String, busy: bool) -> void:
+	is_busy = busy
+	status_label.text = msg
+	status_label.add_theme_color_override("font_color", Color(1, 0.8, 0.3) if busy else Color(0.6, 0.6, 0.6))
+	process_mode = Node.PROCESS_MODE_DISABLED if busy else Node.PROCESS_MODE_INHERIT
+	modulate = Color(1, 1, 1, 0.5) if busy else Color(1, 1, 1, 1)
+
+
 func _run_adb(p_args: PackedStringArray) -> String:
 	var args: PackedStringArray = []
 	if not current_device.is_empty():
@@ -353,7 +378,19 @@ func _list_dir(path: String) -> Array:
 	return files
 
 
+func _pull_file(local_path: String, remote_path: String) -> void:
+	_execute_threaded(func():
+		_pull_file_internal(local_path, remote_path)
+	, "Pulling: " + remote_path.get_file())
+
+
 func _pull_dir(local_path: String, remote_path: String) -> void:
+	_execute_threaded(func():
+		_pull_dir_internal(local_path, remote_path)
+	, "Pulling Directory: " + remote_path.get_file())
+
+
+func _pull_dir_internal(local_path: String, remote_path: String) -> void:
 	if not remote_path.begins_with(app_data_dir):
 		_run_adb(["pull", remote_path, local_path])
 		return
@@ -378,10 +415,10 @@ func _pull_dir(local_path: String, remote_path: String) -> void:
 		if is_dir:
 			_pull_dir(item_local_path, item_remote_path)
 		else:
-			_pull_single_file(item_local_path, item_remote_path)
+			_pull_file_internal(item_local_path, item_remote_path)
 
 
-func _pull_single_file(local_path: String, remote_path: String) -> void:
+func _pull_file_internal(local_path: String, remote_path: String) -> void:
 	if not remote_path.begins_with(app_data_dir):
 		_run_adb(["pull", remote_path, local_path])
 		return
@@ -398,36 +435,31 @@ func _pull_single_file(local_path: String, remote_path: String) -> void:
 
 
 func _push(local_path: String, remote_path: String) -> void:
-	if not remote_path.begins_with(app_data_dir):
-		_run_adb(["push", local_path, remote_path])
-		return
-	
-	# special handling for app's private data dir
-	var temp_name = "temp_" + str(Time.get_ticks_usec())
-	var temp_path = PULL_PUSH_TEMP.path_join(temp_name)
-	
-	_run_adb(["push", local_path, temp_path])
-	
-	var source_name = local_path.get_file()
-	var exact_remote_path = remote_path.path_join(source_name)
-	
-	var cp_cmd = "cp -r '%s' '%s'" % [temp_path, exact_remote_path]
-	_run_adb(["shell", "run-as", package_name, cp_cmd])
-	_run_adb(["shell", "rm", "-rf", temp_path])
-	
-	# Finally refresh the tree view to show newly uploaded file
-	_on_dir_expanded(tree.get_selected(), true)
+	_execute_threaded(func():
+		if not remote_path.begins_with(app_data_dir):
+			_run_adb(["push", local_path, remote_path])
+		else:
+			var temp_name = "temp_" + str(Time.get_ticks_usec())
+			var temp_path = PULL_PUSH_TEMP.path_join(temp_name)
+			_run_adb(["push", local_path, temp_path])
+			var exact_remote_path = remote_path.path_join(local_path.get_file())
+			var cp_cmd = "cp -r '%s' '%s'" % [temp_path, exact_remote_path]
+			_run_adb(["shell", "run-as", package_name, cp_cmd])
+			_run_adb(["shell", "rm", "-rf", temp_path])
+		
+		call_deferred("_on_dir_expanded", tree.get_selected(), true)
+	, "Uploading: " + local_path.get_file())
 
 
 func _delete(remote_path: String) -> void:
-	var delete_cmd = "rm -r '%s'" % remote_path
-	if remote_path.begins_with(app_data_dir):
-		_run_adb(["shell", "run-as", package_name, delete_cmd])
-	else:
-		_run_adb(["shell", delete_cmd])
-	
-	# Finally refresh the tree view
-	_on_dir_expanded(tree.get_selected().get_parent(), true)
+	_execute_threaded(func():
+		var delete_cmd = "rm -r '%s'" % remote_path
+		if remote_path.begins_with(app_data_dir):
+			_run_adb(["shell", "run-as", package_name, delete_cmd])
+		else:
+			_run_adb(["shell", delete_cmd])
+		call_deferred("_on_dir_expanded", tree.get_selected().get_parent(), true)
+	, "Deleting: " + remote_path.get_file())
 
 
 func _create_file_or_directory(path: String, creating_dir: bool) -> void:
@@ -457,7 +489,7 @@ func _get_icon_for_ext(path: String) -> String:
 		_: return "File"
 
 
-func create_context_menu() -> void:
+func _create_context_menu() -> void:
 	var item = tree.get_selected()
 	if not item: return
 	
