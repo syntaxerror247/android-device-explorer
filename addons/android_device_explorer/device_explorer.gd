@@ -11,6 +11,7 @@ var adb_path: String
 var package_name: String
 var app_data_dir: String
 
+var topbar: HBoxContainer
 var tree: Tree
 var devices_btn: OptionButton
 var dock_menu_button: MenuButton
@@ -51,20 +52,20 @@ func _ready() -> void:
 
 
 func _setup_ui() -> void:
-	var hbox := HBoxContainer.new()
-	add_child(hbox)
+	topbar = HBoxContainer.new()
+	add_child(topbar)
 	
 	devices_btn = OptionButton.new()
 	devices_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	devices_btn.custom_minimum_size = Vector2(32, 32)
 	devices_btn.item_selected.connect(_on_device_selected)
-	hbox.add_child(devices_btn)
+	topbar.add_child(devices_btn)
 	
 	var reload_btn = Button.new()
 	reload_btn.icon = get_theme_icon("Reload", "EditorIcons")
 	reload_btn.tooltip_text = "Reload"
 	reload_btn.pressed.connect(_load_devices)
-	hbox.add_child(reload_btn)
+	topbar.add_child(reload_btn)
 	
 	dock_menu_button = MenuButton.new()
 	dock_menu_button.icon = get_theme_icon("GuiTabMenuHl", "EditorIcons")
@@ -74,7 +75,7 @@ func _setup_ui() -> void:
 	popup.add_separator()
 	popup.add_icon_item(get_theme_icon("GDScript", "EditorIcons"), "Open Config Window", 1)
 	popup.id_pressed.connect(_on_dock_menu_item_pressed)
-	hbox.add_child(dock_menu_button)
+	topbar.add_child(dock_menu_button)
 	
 	tree = Tree.new()
 	tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -86,7 +87,7 @@ func _setup_ui() -> void:
 	
 	status_label = Label.new()
 	status_label.text = "Ready"
-	status_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	status_label.add_theme_color_override("font_color", get_theme_color("disabled_font_color", "Editor"))
 	add_child(status_label)
 
 
@@ -332,9 +333,14 @@ func _execute_threaded(callable: Callable, status_msg: String) -> void:
 func _update_status(msg: String, busy: bool) -> void:
 	is_busy = busy
 	status_label.text = msg
-	status_label.add_theme_color_override("font_color", Color(1, 0.8, 0.3) if busy else Color(0.6, 0.6, 0.6))
 	process_mode = Node.PROCESS_MODE_DISABLED if busy else Node.PROCESS_MODE_INHERIT
-	modulate = Color(1, 1, 1, 0.5) if busy else Color(1, 1, 1, 1)
+	
+	var busy_color = get_theme_color("warning_color", "Editor")
+	var idle_color = get_theme_color("disabled_font_color", "Editor")
+	var modulate_color = Color(1, 1, 1, 0.5) if busy else Color(1, 1, 1, 1)
+	tree.modulate = modulate_color
+	topbar.modulate = modulate_color
+	status_label.add_theme_color_override("font_color", busy_color if busy else idle_color)
 
 
 func _run_adb(p_args: PackedStringArray) -> String:
@@ -345,7 +351,7 @@ func _run_adb(p_args: PackedStringArray) -> String:
 	
 	var output := []
 	OS.execute(adb_path, args, output, true)
-	#print(output)
+	print(output)
 	return output[0] if output.size() > 0 else ""
 
 
