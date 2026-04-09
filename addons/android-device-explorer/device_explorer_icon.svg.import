@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://yiqk0onmqnnp"
-path="res://.godot/imported/device_explorer_icon.svg-bd3ed26d59951ae061492446d8e62e43.ctex"
+path="res://.godot/imported/device_explorer_icon.svg-2402f076e14ffd832dea98852dbd39e3.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/android_device_explorer/device_explorer_icon.svg"
-dest_files=["res://.godot/imported/device_explorer_icon.svg-bd3ed26d59951ae061492446d8e62e43.ctex"]
+source_file="res://addons/android-device-explorer/device_explorer_icon.svg"
+dest_files=["res://.godot/imported/device_explorer_icon.svg-2402f076e14ffd832dea98852dbd39e3.ctex"]
 
 [params]
 

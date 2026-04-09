@@ -21,7 +21,7 @@ window/size/viewport_height=884
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/android_device_explorer/plugin.cfg")
+enabled=PackedStringArray("res://addons/android-device-explorer/plugin.cfg")
 
 [physics]
 
