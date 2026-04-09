@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/syntaxerror247/android-device-explorer/refs/heads/main/device-explorer-thumbnail.webp">
+
 # <img src="https://raw.githubusercontent.com/syntaxerror247/android-device-explorer/refs/heads/main/addons/android-device-explorer/device_explorer_icon.svg" width="24"> Android Device Explorer
 
 An editor plugin for **Godot** that lets you explore and manage the filesystem of connected ADB devices directly from within the editor.
