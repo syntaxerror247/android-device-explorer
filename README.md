@@ -21,28 +21,44 @@ An editor plugin for **Godot** that lets you explore and manage the filesystem o
 * A debug build of your app installed on the device (Only Required to access app's private data)
 
 
+### Installation
+
+You can install the plugin in two ways: directly from the Godot Editor using AssetLib, or manually from the [Godot Asset Store](https://store-beta.godotengine.org/asset/anish/android-device-explorer) or [GitHub releases](https://github.com/syntaxerror247/android-device-explorer/releases).
+
+**Option 1: Directly from the Godot Editor**
+
+1. Open the AssetLib tab in the Godot Editor and search for `Android Device Explorer`.
+2. Click Download.
+3. In the installation dialog:
+    - Make sure `Ignore asset root` is **unchecked**.
+    - Click Install.
+4. In main menu, go to `Project > Project Settings > Plugins`, and enable **Android Device Explorer**.
+
+The plugin is now active in your project.
+
+**Option 2: Manual Installation**
+
+1. Download the latest release from:
+    - [Godot Asset Store](https://store-beta.godotengine.org/asset/anish/android-device-explorer)
+    - [GitHub releases](https://github.com/syntaxerror247/android-device-explorer/releases).
+2. Extract and copy the plugin to your project's `addons` folder:
+```
+[Project root]/addons/android-device-explorer/
+```
+3. Open your project in Godot.
+4. In main menu, go to `Project > Project Settings > Plugins`, and enable **Android Device Explorer**.
+
+The plugin is now active in your project.
+
 ### Setup
 
-1. Download the latest release from the [GitHub Releases](https://github.com/syntaxerror247/android-device-explorer/releases)
-
-2. Extract and copy the plugin into your project's `addons` folder:
-   ```
-   [Project Root]/addons/android-device-explorer/
-   ```
-
-3. Open your project in Godot
-
-4. Enable the plugin:
-    - Go to `Project > Project Settings > Plugins`
-    - Enable **`Android Device Explorer`**
-
-5. Configure the plugin:
+1. Configure the plugin:
     - **ADB Path**: Path to the `adb` executable on your system
     - **Package Name**: Your app's debug package name (example, `org.godotengine.editor.v4.debug`)
     <img width="450" height="275" alt="Config Window" src="https://github.com/user-attachments/assets/fd5260d9-6b3e-437d-ba3c-4c94e79858ce" />
 
 
-6. Connect your device:
+2. Connect your device:
     - Connect your device and ensure USB debugging is enabled
     - Or, start your Android emulator
 
