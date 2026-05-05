@@ -31,6 +31,31 @@ enum ContextMenu {
 	COPY_PATH
 }
 
+enum FileType {
+	directory,
+	link,
+	file
+}
+
+class FileInfo:
+	var name: String
+	var path: String
+	var type: FileType
+	
+	func _init(p_name: String, p_path: String, p_type: FileType) -> void:
+		name = p_name
+		path = p_path
+		type = p_type
+
+class TreeItemMetadata:
+	var path: String
+	var is_file: bool
+	
+	func _init(p_path: String, p_is_file: bool) -> void:
+		path = p_path
+		is_file = p_is_file
+
+
 func _ready() -> void:
 	var saved_adb_path = EditorInterface.get_editor_settings().get_setting(ADB_PATH_SETTING)
 	var saved_package_name = EditorInterface.get_editor_settings().get_setting(PACKAGE_NAME_SETTING)
@@ -139,30 +164,34 @@ func _load_root() -> void:
 	
 	if show_all:
 		root.set_text(0, "/")
-		root.set_metadata(0, {"path": "/", "is_dir": true})
+		root.set_metadata(0, TreeItemMetadata.new("/", false))
 		_add_dummy(root)
 		_on_dir_expanded(root)
 	else:
 		root.set_text(0, "Device Scopes")
-		_create_tree_item(root, "App Data", app_data_dir, true)
-		_create_tree_item(root, "Temp Storage", TMP_DIR, true)
-		_create_tree_item(root, "Internal Storage", STORAGE_ROOT, true)
+		_create_tree_item(root, "App Data", app_data_dir, FileType.directory)
+		_create_tree_item(root, "Temp Storage", TMP_DIR, FileType.directory)
+		_create_tree_item(root, "Internal Storage", STORAGE_ROOT, FileType.directory)
 	
 	_run_adb(["shell", "mkdir", PULL_PUSH_TEMP])
 
 
-func _create_tree_item(parent: TreeItem, text: String, path: String, is_dir: bool, custom_icon := "", skip_dummy := false) -> TreeItem:
+func _create_tree_item(parent: TreeItem, text: String, path: String, type: FileType, custom_icon := "", skip_dummy := false) -> TreeItem:
 	var item := tree.create_item(parent)
 	item.set_text(0, text)
-	item.set_metadata(0, {"path": path, "is_dir": is_dir})
+	item.set_metadata(0, TreeItemMetadata.new(path, type == FileType.file))
 	
-	var icon_name = custom_icon if custom_icon != "" else ("Folder" if is_dir else _get_icon_for_ext(path))
-	item.set_icon(0, get_theme_icon(icon_name, "EditorIcons"))
+	var icon_name = custom_icon if not custom_icon.is_empty() else _get_icon_for_ext(path)
 	
-	if is_dir:
+	if type == FileType.directory:
+		if custom_icon.is_empty(): icon_name = "Folder"
 		item.set_icon_modulate(0, get_theme_color("accent_color", "Editor"))
 		if not skip_dummy: _add_dummy(item)
+	elif type == FileType.link:
+		if custom_icon.is_empty(): icon_name = "ExternalLink"
+		if not skip_dummy: _add_dummy(item)
 	
+	item.set_icon(0, get_theme_icon(icon_name, "EditorIcons"))
 	item.collapsed = true
 	return item
 
@@ -179,8 +208,8 @@ func _on_item_collapsed(item: TreeItem) -> void:
 
 
 func _on_dir_expanded(item: TreeItem, refresh := false) -> void:
-	var meta = item.get_metadata(0)
-	if not meta or not meta.is_dir: return
+	var meta: TreeItemMetadata = item.get_metadata(0)
+	if not meta or meta.is_file: return
 	
 	# Skip if already loaded (and not refreshing)
 	if item.get_child_count() > 0 && not refresh:
@@ -198,7 +227,7 @@ func _on_dir_expanded(item: TreeItem, refresh := false) -> void:
 		_populate_special_data_dir.call_deferred(item)
 		return
 	
-	var files: Array = _list_dir(path)
+	var files: Array[FileInfo] = _list_dir(path)
 	if files.size() > 0 or refresh:
 		# Files are loaded, now remove the dummy file or old items.
 		for child in item.get_children():
@@ -208,15 +237,14 @@ func _on_dir_expanded(item: TreeItem, refresh := false) -> void:
 		_add_dummy.call_deferred(item)
 	
 	for f in files:
-		var full_path = path.rstrip("/") + "/" + f.name
-		_create_tree_item.call_deferred(item, f.name, full_path, f.is_dir)
+		_create_tree_item.call_deferred(item, f.name, f.path, f.type)
 
 
 func _populate_special_data_dir(parent: TreeItem) -> void:
-	var data_node = _create_tree_item(parent, "data", "/data/data", true, "", true)
-	var local_node = _create_tree_item(parent, "local", "/data/local", true, "", true)
-	var tmp_node = _create_tree_item(local_node, "tmp", TMP_DIR, true)
-	var pkg_node = _create_tree_item(data_node, package_name, app_data_dir, true)
+	var data_node = _create_tree_item(parent, "data", "/data/data", FileType.directory, "", true)
+	var local_node = _create_tree_item(parent, "local", "/data/local", FileType.directory, "", true)
+	var tmp_node = _create_tree_item(local_node, "tmp", TMP_DIR, FileType.directory)
+	var pkg_node = _create_tree_item(data_node, package_name, app_data_dir, FileType.directory)
 
 
 func _show_file_dialog(remote_path: String, is_uploading: bool, is_dir: bool = false) -> void:
@@ -366,7 +394,7 @@ func _get_devices() -> Array[String]:
 	return result
 
 
-func _list_dir(path: String) -> Array:
+func _list_dir(path: String) -> Array[FileInfo]:
 	var args := ["shell"]
 	var ls_cmd = "ls -1 -F '%s'" % path
 	if path.begins_with(app_data_dir):
@@ -375,13 +403,27 @@ func _list_dir(path: String) -> Array:
 		args.append(ls_cmd)
 	
 	var result := _run_adb(args)
-	var files := []
+	var files: Array[FileInfo]
 	for line in result.split("\n"):
 		line = line.strip_edges()
-		if line.ends_with("@"): continue # Ignore links like /sdcard for now. I'll handle it later.
 		if line == "" or line.begins_with("total"): continue
-		files.append({"name": line.rstrip("/"), "is_dir": line.ends_with("/")})
+		
+		var file_info = FileInfo.new(line, path.path_join(line), FileType.file)
+		
+		if line.ends_with("@"):
+			file_info.name = line.rstrip("@")
+			file_info.type = FileType.link
+			file_info.path = _resolve_link(path.path_join(file_info.name))
+		elif line.ends_with("/"):
+			file_info.name = line.rstrip("/")
+			file_info.type = FileType.directory
+		
+		files.append(file_info)
 	return files
+
+func _resolve_link(full_path: String) -> String:
+	var result = _run_adb(["shell", "readlink -f '%s'" % full_path])
+	return result.strip_edges()
 
 
 func _pull_file(local_path: String, remote_path: String) -> void:
@@ -501,7 +543,7 @@ func _create_context_menu() -> void:
 	
 	var menu = PopupMenu.new()
 	
-	var is_dir = item.get_metadata(0).is_dir
+	var is_dir = not item.get_metadata(0).is_file
 	if is_dir:
 		var sub_menu = PopupMenu.new()
 		sub_menu.add_icon_item(get_theme_icon("File", "EditorIcons"), "File", ContextMenu.NEW_FILE)
@@ -528,7 +570,7 @@ func _create_context_menu() -> void:
 
 func _on_context_menu_item_pressed(id: int) -> void:
 	var item = tree.get_selected()
-	var meta = item.get_metadata(0) if item else null
+	var meta: TreeItemMetadata = item.get_metadata(0) if item else null
 	if not meta: return
 	
 	match id:
@@ -537,13 +579,12 @@ func _on_context_menu_item_pressed(id: int) -> void:
 		ContextMenu.NEW_DIRECTORY:
 			_show_create_dialog(meta.path, true)
 		ContextMenu.SAVE_AS:
-			_show_file_dialog(meta.path, false, meta.is_dir)
+			_show_file_dialog(meta.path, false, not meta.is_file)
 		ContextMenu.UPLOAD:
 			_show_file_dialog(meta.path, true)
 		ContextMenu.DELETE:
-			_show_delete_dialog(meta.path, meta.is_dir)
+			_show_delete_dialog(meta.path, not meta.is_file)
 		ContextMenu.SYNCHRONIZE:
 			_on_dir_expanded(item, true)
 		ContextMenu.COPY_PATH:
 			DisplayServer.clipboard_set(meta.path)
-	
