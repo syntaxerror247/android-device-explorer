@@ -4,7 +4,7 @@ extends EditorPlugin
 var dock
 
 func _enter_tree():
-	var dock_control = preload("res://addons/android-device-explorer/device_explorer.gd").new()
+	var dock_control = preload("res://addons/android-device-explorer/scripts/device_explorer.gd").new()
 	dock = EditorDock.new()
 	dock.add_child(dock_control)
 	dock.title = "Device Explorer"

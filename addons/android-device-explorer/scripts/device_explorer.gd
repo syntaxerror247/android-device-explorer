@@ -77,10 +77,7 @@ func _setup_ui() -> void:
 	popup.id_pressed.connect(_on_dock_menu_item_pressed)
 	topbar.add_child(dock_menu_button)
 	
-	tree = Tree.new()
-	tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	tree.hide_root = true
-	tree.allow_rmb_select = true
+	tree = preload("res://addons/android-device-explorer/scripts/root_tree.gd").new()
 	tree.item_collapsed.connect(_on_item_collapsed)
 	tree.item_mouse_selected.connect(_on_item_mouse_selected)
 	add_child(tree)
@@ -179,6 +176,8 @@ func _on_item_collapsed(item: TreeItem) -> void:
 
 
 func _on_dir_expanded(item: TreeItem, refresh := false) -> void:
+	if not item: return
+	
 	var meta = item.get_metadata(0)
 	if not meta or not meta.is_dir: return
 	
